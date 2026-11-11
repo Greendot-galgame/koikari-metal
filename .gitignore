@@ -1,0 +1,28 @@
+# Local metadata and Python bytecode
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Rust build artifacts and local executable backups
+target/
+/koikari-metal/koikari-metal
+/koikari-metal/koikari-metal.*
+/debug-capture-tests
+/texture-cache-tests
+/ui-geometry-tests
+
+# Delivery bundles and generated root screenshots
+/*.tar.gz
+/*.png
+
+# Owned game archives, Windows components and user save data
+*.xp3
+*.exe
+*.dll
+savedata/
+quicksave.json
+slot-*.json
+
+# Keep diagnostic source tools, not extracted scripts, captures or logs
+/diagnostics/*
+!/diagnostics/*.py
