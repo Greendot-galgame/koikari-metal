@@ -91,7 +91,11 @@ pub fn rasterize(
     // SAFETY: the shim allocated `len` bytes via calloc.
     let rgba = unsafe { std::slice::from_raw_parts(raw as *const u8, len) }.to_vec();
     unsafe { km_free_text(raw as *mut u8) };
-    Some(TextBitmap { width, height, rgba })
+    Some(TextBitmap {
+        width,
+        height,
+        rgba,
+    })
 }
 
 /// Draw a `c_void`-free debugging helper for tests.

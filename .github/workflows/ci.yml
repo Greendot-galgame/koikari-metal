@@ -1,0 +1,73 @@
+name: CI
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: koikari-metal
+
+jobs:
+  macos:
+    name: macOS 15 / Rust 1.95.0 (no game assets)
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RUSTUP_TOOLCHAIN: "1.95.0"
+      CARGO_TERM_COLOR: always
+      # The bundled Opus dependency uses an older CMake policy version.
+      # CMake 4 accepts it with this compatibility floor; CMake 3 ignores it.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+    steps:
+      - name: Check out source without stored credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify native macOS build tools
+        run: |
+          xcode-select --print-path
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+          echo "CC=$(xcrun --sdk macosx --find clang)" >> "$GITHUB_ENV"
+          echo "CXX=$(xcrun --sdk macosx --find clang++)" >> "$GITHUB_ENV"
+          cmake --version
+          uname -m
+
+      - name: Install Rust 1.95.0, rustfmt and Clippy
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy --no-self-update
+          rustc --version --verbose
+          cargo --version
+          rustup component list --installed
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check correctness and suspicious behavior with Clippy
+        run: >-
+          cargo clippy --locked --all-targets --
+          -A unexpected_cfgs
+          -A clippy::style
+          -A clippy::complexity
+          -A clippy::perf
+          -D clippy::correctness
+          -D clippy::suspicious
+
+      # Real-resource and opt-in Metal tests return early in this asset-free job.
+      # A green result is not the historical full resource + Metal acceptance run.
+      - name: Test without private game assets or Metal opt-in
+        run: cargo test --locked --all-targets
+
+      - name: Build native release executable
+        run: cargo build --locked --release

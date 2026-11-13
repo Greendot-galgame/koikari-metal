@@ -2,7 +2,15 @@
 name = "koikari-metal"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.95"
 description = "A Steam-free macOS visual novel runtime for locally owned Koikari XP3 assets"
+license = "MIT"
+repository = "https://github.com/Greendot-galgame/koikari-metal"
+readme = "README.md"
+keywords = ["visual-novel", "kirikiri", "metal", "macos", "xp3"]
+categories = ["game-engines", "games"]
+publish = false
+exclude = ["docs/*.png"]
 build = "build.rs"
 
 [dependencies]

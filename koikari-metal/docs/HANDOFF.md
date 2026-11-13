@@ -1,6 +1,8 @@
 # 交接文档 — 恋爱，我就借走咯 · macOS Rust + Metal 重制
 
-> 状态：**可运行**。窗口、渲染、音频、剧情、分支、存档全部打通，43 个测试通过。
+> **历史交接记录，不是现行安装指南。** 本文记录早期实现阶段，当时为 **43 个测试通过**；旧环境约束、结构清单和测试数量不可视为最新版。当前构建与使用以[运行时 README](<../README.md>)和[构建说明](<../BUILD-AND-RUN.md>)为准；2026-11-11 后续[全面检查](<COMPREHENSIVE-AUDIT-2026-11-11.md>)记录了本机 124 项测试及基础 95 章 / 追加模式 124 章的验证边界。真实资源测试不在普通 CI 中。
+>
+> 本 GitHub 仓库只提供源码，不分发预编译可执行文件。代码采用[根 MIT 许可证](<../../LICENSE>)；图片、游戏截图与原始游戏资源不在代码许可范围内。影片、复杂动画时序与原版场景回想仍未实现，留待后续工作；B 仅为最近 6 条对话历史。
 
 ## 1. 目标与达成情况
 
@@ -11,23 +13,15 @@
 | 直接读取原始 `data.xp3` / `patch.xp3`（不复制、不修改、不重打包） | ✅ 只读流式读取，集成测试断言 size/mtime 不变 |
 | 完全去掉 Steam | ✅ 不加载 `steam_api.dll` / `krkrsteam.dll` / `DrawDeviceForSteam.dll` / `steam_autocloud.vdf`，`achievement` 命令记录诊断后跳过 |
 | 不运行 Windows PE / 原生插件 DLL | ✅ 全部用 Rust 重新实现 |
-| 画面 | ✅ Metal 渲染背景 / 三层立绘 / 文本框 / 分支 / 标题 / 记忆 / 菜单 |
+| 画面 | ✅ Metal 渲染背景 / 三层立绘 / 文本框 / 分支 / 标题 / 对话历史 / 菜单；不含原版场景回想 |
 | 声音 | ✅ BGM/SE 走 Ogg Vorbis 流式，语音走 Ogg Opus 解码 |
 | 可玩 | ✅ 首章 400+ 次推进、95 章编译、12 张选择表分支可达 |
 
-## 2. 环境约束（先看，否则会卡住）
+## 2. 历史环境与现行建议
 
-1. **sandbox 是 `workspace-write`，而且本卷（exFAT）不允许创建目录**。
-   `mkdir` 在 `/Volumes/Untitled/...` 下一律 `No such file or directory`（沙箱拒绝）。
-   因此：
-   - 构建必须把 `CARGO_TARGET_DIR` 指到 `/tmp` 下（cargo 会建很多子目录）；
-   - `write` / `edit` 工具会失败（它们要建临时目录），改用 `cat > file <<'EOF'`；
-   - 新文件只能放进**已存在**的目录（`src/`、`tests/`、`docs/`）。
-2. 本卷写入速度约 **5 MB/s**，且偶发 `EIO`。大量编译请务必用 `/tmp`。
-3. `tools/cargo.sh` 把 `CARGO_HOME`/`CARGO_TARGET_DIR` 指到项目内。
-   在沙箱里跑会因为无法建目录而失败；沙箱外（用户自己）没问题。
-4. 工具链：macOS 27.0.1 / Apple Silicon / rustc 1.95.0 / Xcode CLI tools。
-   `libopus` 由 `opus` crate 链接。
+当时使用 macOS 27.0.1 / Apple Silicon / rustc 1.95.0 / Xcode Command Line Tools。推荐继续采用已验证的 Rust 1.95.0 和 macOS / Apple Silicon；Intel 未经人工验证，不承诺 iOS 或 Windows 支持。`libopus` 由 `opus` crate 链接。
+
+早期交接涉及的外置卷写入故障、沙箱限制和临时目录布局只属于当时的开发环境，不是公开项目的构建要求。现行源码构建与可选的[Cargo 包装脚本](<../tools/cargo.sh>)见[构建说明](<../BUILD-AND-RUN.md>)；不要据此文修改本机卷权限或使用旧临时路径。
 
 ## 3. XP3 格式（已用真实归档逐字节确认）
 
@@ -54,24 +48,26 @@ tjs 70、mp4 9、otf 6、png 2、asd 2。
 
 ## 4. 这次修掉的四个真 bug（都验证过）
 
-1. **zlib 流式解压误报**（`archive.rs`）
+1. **zlib 流式解压误报**（[archive.rs](<../src/archive.rs>)）
    旧代码在 `remaining == 0` 时立刻传 `FlushDecompress::Finish`，即使输出缓冲区
    （32 KiB）还装不下剩余数据 —— miniz_oxide 会报 `invalid zlib stream`，
    表现为「脚本全读不出来」。正确条件：`remaining == 0 && input_pos == input_len`。
-2. **Metal API 名字**（`renderer.rs`，原来根本没编译过）
+2. **Metal API 名字**（[renderer.rs](<../src/renderer.rs>)，原来根本没编译过）
    metal 0.32 用 `MTLRegion` / `MTLSamplerAddressMode` / `MTLTextureType`（`D2`）/
    `MTLTextureUsage::ShaderRead` / `MTLBlendFactor` / `MTLTextureMinMagFilter` /
    `MTLPixelFormat`；`color_attachments()` 返回引用而不是 `Option`；
    `get_function()` 返回 `Result<_, String>` 而不是 `anyhow`。
-3. **预乘 alpha**（`main.rs`）
+3. **预乘 alpha**（[main.rs](<../src/main.rs>)）
    管线混合 `source=One, dest=OneMinusSourceAlpha`（预乘），但 WebP/PNG 是直通 alpha。
    不预乘的话，立绘透明区域的 `RGB=255` 会按 `One` 加进画面，糊出一条**纯白横带**
    （最初以为是 stride 对齐问题，padding 之后像素完全没变才排除）。
-4. **KAG 重复属性**（`script.rs`）
+4. **KAG 重复属性**（[script.rs](<../src/script.rs>)）
    `scenario/main/0_15.ks:111` 有一处 `@t_move lay=@t_move lay=5`（原作笔误）。
    KAG 用字典存属性、后者覆盖前者；旧解析器 `ensure!` 报错，导致 0_15 整章编译失败。
 
-## 5. 代码结构
+## 5. 当时的代码结构（测试数量为早期快照）
+
+下列清单用于追溯早期实现，不代表当前文件清单或测试统计；现行结构见[README](<../README.md#实现结构>)。
 
 ```
 koikari-metal/
@@ -111,49 +107,45 @@ renderer::Renderer::new() · upload_rgba() · begin_frame() · draw()/draw_uv()
 audio::AudioEngine::new() · play_bgm/play_voice/play_se · stop_* · poll(assets)
 ```
 
-## 6. 构建与运行
+## 6. 构建与运行（现行入口）
+
+从 [GitHub 源码](<https://github.com/Greendot-galgame/koikari-metal>)构建，不使用早期本机交付的二进制或备份。先按[构建说明](<../BUILD-AND-RUN.md>)准备 Xcode / CMake，并在同一终端设置 SDK 与编译器环境，再执行：
 
 ```sh
-cd koikari-metal
-./tools/cargo.sh build --release
-./target/release/koikari-metal                 # 自动向上找 data.xp3
-./target/release/koikari-metal --root "<游戏目录>"
+git clone https://github.com/Greendot-galgame/koikari-metal.git koikari-metal-source
+cd koikari-metal-source/koikari-metal
+cargo +1.95.0 build --release --locked
+export KOIKARI_GAME_ROOT="/path/to/owned-game"
+./target/release/koikari-metal --root "$KOIKARI_GAME_ROOT"
 ```
 
-沙箱内开发时（不能建目录）：
+完整前置要求、资源模式及存档说明以[构建说明](<../BUILD-AND-RUN.md>)为准。
+
+## 7. 验证方式
+
+现行验证分级与命令见[测试说明](<TESTING.md>)。普通 CI 不携带真实资源，不能复现本机资源审计或把资源测试提前返回理解为实际覆盖。
+
+在不含原始游戏归档的源码检出中，不设置 `KOIKARI_GAME_ROOT`、`KOIKARI_ASSET_ROOT` 和 `KOIKARI_METAL_TESTS` 时，可运行合成回归：
 
 ```sh
-export CARGO_HOME=/tmp/koikari/cargo-home
-export CARGO_TARGET_DIR=/tmp/koikari/target
-cargo test
-cargo run --release --bin koikari-metal -- --capture shot.png --advance 2
+cargo +1.95.0 test --locked
 ```
 
-## 7. 验证方式（下次改完请照做）
+本机自有资源和 Metal 回归须明确选择资源目录及开关，详见[历史全面检查的复现步骤](<COMPREHENSIVE-AUDIT-2026-11-11.md#本机复现>)。早期截图和日志不是普通 CI 的输出；日志只在本机生成，不随仓库分发。本次文档更新没有运行、展示或播放游戏内容。
 
-```sh
-cargo test                                         # 43 个
-cargo run --release -- --capture /tmp/a.png --advance 2      # 首章一帧
-cargo run --release -- --capture /tmp/t.png --title          # 标题
-cargo run --release -- --capture /tmp/c.png --advance 5000   # 第一个分支
-KOIKARI_WINDOW_SHOT=/tmp/w.png ./target/release/koikari-metal  # 真实窗口截帧（跑几秒后杀掉）
-```
+## 8. 已知限制 / 后续工作
 
-对照 `docs/docs-gameplay.png`（立绘表情、腮红、文本框、金色人名）。
+这是早期交接的限制清单，现状以[README 的兼容边界](<../README.md#已知限制>)和[全面检查报告](<COMPREHENSIVE-AUDIT-2026-11-11.md#仍有的限制与未验证部分>)为准：
 
-## 8. 已知限制 / 下一步
-
-1. 转场（`ts`/`te`/`trans`/`wt`）、震动、立绘缓动：立即生效，不还原原始时长。
-2. 开场 MP4 不播放（`openvideo`/`playvideo` 跳过 + 诊断）。
+1. **影片、复杂动画时序和原版场景回想仍未实现，留待后续工作**。转场（`ts`/`te`/`trans`/`wt`）立即生效，震动和原始演出时长未复刻；有限立绘动作也不等于完整动画支持。
+2. 开场 MP4 不播放（`openvideo`/`playvideo` 跳过并记录诊断）。
 3. 不执行 TJS2：章节表、选择表、立绘宽度/位置表用受限解析读取，其余 `.tjs` 不执行。
-4. 回忆界面只显示最近 6 条；菜单只有说明文字。
+4. B 显示最近 6 条**对话历史**，不是原版回想或场景重播；菜单只有说明文字。
 5. 存档只有快速存档一个槽位（`quicksave.json`），没有多槽 UI。
-6. 缺少：BGM 淡入淡出、语音打断的精确时机、自动播放速度设置。
+6. 早期未完成项包括 BGM 淡入淡出、语音打断的精确时机、自动播放速度设置；不可从旧清单推断这些能力已新增。
 
 ## 9. 注意事项
 
-- `extracted/` 里全是 0 字节的旧解析器产物，**不要参考**。看剧本用 `--capture` 或
-  `AssetStore::text()`。
-- 卷上到处都是 macOS 的 `._*` AppleDouble 文件，不是源码。
-- 原始 `data.xp3` / `patch.xp3` 必须字节不变；测试已在断言。
-- 需要新的验证截图时，用 `--capture`（离屏）或 `KOIKARI_WINDOW_SHOT`（真实窗口）。
+- 不要依赖早期本机抽取目录、临时日志、二进制备份或卷上元数据，它们不是公开源码交付的一部分。
+- 原始 `data.xp3` / `patch.xp3` 必须保持不变；真实资源测试检查读取前后的文件大小与修改时间，但不等于对全部载荷作密码学认证。
+- 需要本机截图时才显式选择 `--capture`（离屏）或 `KOIKARI_WINDOW_SHOT`（真实窗口）；不要把游戏画面、台词、声音、归档或用户存档附入公开问题报告。

@@ -39,7 +39,13 @@ mod tests {
 
     #[test]
     fn asset_keys_are_platform_neutral() {
-        assert_eq!(normalize_asset_key("./BGImage/BG1_0.WEBP"), "bgimage/bg1_0.webp");
-        assert_eq!(normalize_asset_key("scenario\\main\\0_1.ks"), "scenario/main/0_1.ks");
+        assert_eq!(
+            normalize_asset_key("./BGImage/BG1_0.WEBP"),
+            "bgimage/bg1_0.webp"
+        );
+        assert_eq!(
+            normalize_asset_key("scenario\\main\\0_1.ks"),
+            "scenario/main/0_1.ks"
+        );
     }
 }

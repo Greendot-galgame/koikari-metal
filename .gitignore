@@ -3,8 +3,10 @@
 __pycache__/
 *.py[cod]
 
-# Rust build artifacts and local executable backups
+# Rust build artifacts, local dependency caches and executable backups
 target/
+.cargo-home/
+*.dSYM/
 /koikari-metal/koikari-metal
 /koikari-metal/koikari-metal.*
 /debug-capture-tests
@@ -15,10 +17,17 @@ target/
 /*.tar.gz
 /*.png
 
+# Local credentials and Apple signing material
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+
 # Owned game archives, Windows components and user save data
-*.xp3
-*.exe
-*.dll
+*.[xX][pP]3
+*.[eE][xX][eE]
+*.[dD][lL][lL]
 savedata/
 quicksave.json
 slot-*.json

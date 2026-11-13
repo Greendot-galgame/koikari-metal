@@ -1,0 +1,30 @@
+name: Feature request / 功能建议
+description: 讨论兼容能力、交互与工程改进。
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 描述使用场景，不要附带原始游戏素材或剧情。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案与验收标准
+      description: 说明预期行为、失败路径和可以用合成输入验证的最小案例。
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: 兼容影响
+      description: 是否影响存档、资源优先级、动画/媒体生命周期或现有操作？
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 范围检查
+      options:
+        - label: 我已查看 README 与路线图，不要求执行原始 TJS/DLL 或提供游戏资源下载。
+          required: true

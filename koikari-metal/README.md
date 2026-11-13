@@ -7,27 +7,33 @@
 `plugin/DrawDeviceForSteam.dll`，不读取 `savedata/steam_autocloud.vdf`，
 也不运行任何 Windows PE / 原生插件 DLL。
 
-![游戏画面](docs/docs-gameplay.png)
-
 ## 快速开始
 
+本 GitHub 仓库提供源码，**不提供预编译可执行文件，也不包含原始游戏资源**。推荐使用已验证的 **Rust 1.95.0、macOS / Apple Silicon**，并安装 Xcode Command Line Tools 和 CMake；Intel Mac 未经人工验证，不承诺 iOS 或 Windows 支持。
+
+先安装上述构建工具，再从 [GitHub 源码仓库](<https://github.com/Greendot-galgame/koikari-metal>) 构建：
+
 ```sh
-cd "/Users/greenhats/Downloads/koikari-metal-delivery/koikari-metal"
+git clone https://github.com/Greendot-galgame/koikari-metal.git koikari-metal-source
+cd koikari-metal-source/koikari-metal
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+export CC="$(xcrun --sdk macosx --find clang)"
+export CXX="$(xcrun --sdk macosx --find clang++)"
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
+cargo +1.95.0 build --release --locked
 
-# 交付包已有 Apple Silicon 可执行程序，无需重新编译
-./koikari-metal --root "/Users/greenhats/Documents/租借男友"
-
-# 修改源码后再构建（Xcode Command Line Tools + Rust 1.85+）
-./tools/cargo.sh build --release
-./target/release/koikari-metal --root "/Users/greenhats/Documents/租借男友"
+# 改为你合法拥有的游戏资源目录；资源无需复制到源码仓库
+export KOIKARI_GAME_ROOT="/path/to/owned-game"
+./target/release/koikari-metal --root "$KOIKARI_GAME_ROOT"
 ```
+
+详见[构建与运行说明](<BUILD-AND-RUN.md>)。
 
 更新后请关闭旧游戏进程再重新启动。资源无需移动；同目录的可选追加归档会自动加载，详见[追加归档说明](<docs/ADDITIONAL-ARCHIVE.md>)。
 
 追加包会替换部分脚本，所以默认使用独立的追加包存档目录，不混读旧存档。要继续原有 v1 快速存档，请在启动命令追加 `--base-only`，该模式保留原资源指纹和旧存档目录；旧档中的重叠头像仍会迁移为单个前景头像。
 
-`tools/cargo.sh` 只是把 `CARGO_HOME` / `CARGO_TARGET_DIR` 指到项目目录内，
-避免写入 `~/.cargo`；如果你的环境本来就能正常 `cargo build`，直接用 cargo 也可以。
+可选的[构建包装脚本](<tools/cargo.sh>)把 `CARGO_HOME` / `CARGO_TARGET_DIR` 指到项目目录内；上面的标准 Cargo 命令不需要该脚本。
 
 ## 操作
 
@@ -37,7 +43,7 @@ cd "/Users/greenhats/Downloads/koikari-metal-delivery/koikari-metal"
 | 数字键 1–9 | 选择分支 |
 | Ctrl（按住） | 快进 |
 | A | 自动播放 |
-| B | 回忆（最近 6 条） |
+| B | 对话历史（最近 6 条），不是原版场景回想 |
 | H | 隐藏 / 显示文本框 |
 | F5 / F9 | 快速存档 / 快速读取；成功提示为青绿色，2.5 秒后自动消失 |
 | Esc | 打开 / 关闭菜单 |
@@ -56,15 +62,18 @@ cd "/Users/greenhats/Downloads/koikari-metal-delivery/koikari-metal"
 ```
 koikari-metal [--root <游戏目录>]
 
-# 无窗口渲染一帧到 PNG（用于验证/截图，不需要窗口服务器）
-koikari-metal --capture shot.png --advance 120 --size 2560x1440
-koikari-metal --capture title.png --title
-koikari-metal --preview-texture stb6_s2_1_1 --capture tex.png
+# 以下使用本机已编译的 ./target/release/koikari-metal；需自有资源及 Metal 设备
+# 离屏渲染一帧到 PNG（本机可选验证，不属于普通 CI；不要公开上传）
+mkdir -p ../diagnostics
+./target/release/koikari-metal --root "$KOIKARI_GAME_ROOT" \
+  --capture ../diagnostics/shot.png --advance 120 --size 2560x1440
+./target/release/koikari-metal --root "$KOIKARI_GAME_ROOT" \
+  --capture ../diagnostics/title.png --title
 
 # 逐次实际渲染，强制缓存回收后核对指定剧情停点（不执行原版 TJS）
-koikari-metal --root "/Users/greenhats/Documents/租借男友" \
+./target/release/koikari-metal --root "$KOIKARI_GAME_ROOT" \
   --scenario scenario/main/0_2.ks --line 306 --capture-replay \
-  --texture-budget-mib 32 --size 1280x720 --capture regression.png
+  --texture-budget-mib 32 --size 1280x720 --capture ../diagnostics/regression.png
 
 # --label 选择章节标签，--choice 2 只选择第一次遇到的分支的第2项
 # --line 是该章节脚本行号，须从章节开头正常执行，不跳过图层设置
@@ -86,7 +95,7 @@ src/
 ├─ audio.rs     Ogg Vorbis（流式）与 Ogg Opus（解码为 PCM）播放，BGM/语音/SE 三总线
 ├─ save.rs      存档 JSON（校验版本 + 资源指纹）
 ├─ lib.rs       对外 API
-└─ main.rs      winit 0.30 + CAMetalLayer 窗口、标题/游戏/菜单/回忆界面、输入
+└─ main.rs      winit 0.30 + CAMetalLayer 窗口、标题/游戏/菜单/对话历史界面、输入
 native/text.m   AppKit/CoreText 平台 shim（唯一的 ObjC 代码）
 ```
 
@@ -106,9 +115,11 @@ native/text.m   AppKit/CoreText 平台 shim（唯一的 ObjC 代码）
 5. **立绘分层**：`stb*`（身体）+ `st*`（表情）+ `stc*`（腮红）三张图**同原点**叠加，
    无需额外偏移表。
 
-## 已验证
+## 历史验证与测试边界
 
-- 2026-11-11 全面检查后 **124 个测试通过**；覆盖基础 95 章/追加 124 章、49,103 个停点、60 条选择分支、219 个序列化检查点，以及 227 条 Vorbis 音乐/音效初始化。已修复标题页 F5 覆盖风险、读档原子性、错误回报、音效残留及数值/调用边界等问题；见[全面检查报告与验证边界](<docs/COMPREHENSIVE-AUDIT-2026-11-11.md>)。
+以下是 2026-11-11 本机使用自有资源与显式启用 Metal 回归时的记录，**不是普通 CI 的资源覆盖承诺，也不是本次文档更新重新运行的结果**。**真实资源测试不在普通 CI 中**；相关测试在资源不可用或未启用时可能提前返回，“通过”数量不等于真实资源验证数量。现行验证分级与命令见[测试说明](<docs/TESTING.md>)。
+
+- 当日全面检查后记录 **124 个测试通过**；覆盖基础 **95 章**/追加模式 **124 章**、49,103 个停点、60 条选择分支、219 个序列化检查点，以及 227 条 Vorbis 音乐/音效初始化。已修复标题页 F5 覆盖风险、读档原子性、错误回报、音效残留及数值/调用边界等问题；见[全面检查报告与验证边界](<docs/COMPREHENSIVE-AUDIT-2026-11-11.md>)。
 - 真实素材索引：15,051 + 20 条；对所读素材执行 Adler-32 校验，不声称扫描校验过所有归档载荷。
 - 95 章、21,001 个剧情停点、1,969 个不同图层图片引用均可解析；12 张选择表的 29 条分支可推进。
 - 用户报告的四个画面均重新捕获；32 MiB 缓存下逐次真实渲染与同停点单帧渲染的 PNG 完全一致。
@@ -121,7 +132,7 @@ native/text.m   AppKit/CoreText 平台 shim（唯一的 ObjC 代码）
 ## 已知限制
 
 - 转场（`trans`/`ts`/`te`/`wt`）立即生效，画面震动不重现。有限立绘动作使用原定义的最终偏移，循环动作、延迟表情以及动作跨转场/立绘重建的时序仍未完整复刻；不是完整的原版引擎。
-- 开场 MP4 影片不播放（`openvideo` 等命令跳过并记录诊断）。
+- **影片播放、复杂动画时序及原版场景回想仍未实现，留待后续工作**。开场 MP4（`openvideo` 等命令）跳过并记录诊断；B 仅显示对话历史，不提供场景回想导航。
 - 不支持 TJS2 脚本执行：剧情驱动的数据（章节表、选择表、立绘宽度/位置表）用受限解析读取，
   其余 `.tjs` 仅作参考，不执行。
 - Steam 相关命令（`achievement` 等）一律忽略并记录诊断。
@@ -129,5 +140,6 @@ native/text.m   AppKit/CoreText 平台 shim（唯一的 ObjC 代码）
 
 ## 许可与素材
 
-本运行时只包含代码。所有图像、脚本、音乐、语音仍来自玩家本地的
-`data.xp3` / `patch.xp3`，不复制、不修改、不重新分发。
+运行时代码采用 [MIT 许可证](<../LICENSE>)。MIT 仅授权代码，不涵盖文档中的游戏截图、图片或原始游戏资源；这些内容的权利仍属于各自权利人。
+
+原始游戏图像、脚本、音乐、语音和可选追加资源由玩家合法自备，运行时从本地归档只读加载，不修改或重新分发。拥有源码或 MIT 授权不代表获得原作资源的使用、复制或传播授权。
